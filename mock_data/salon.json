@@ -1,0 +1,37 @@
+[
+    {
+        "name": "Kimoli",
+        "location": "Vesterbrogade 92, 1620 Copenhagen, Denmark",
+        "open_time": ["9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "break"],
+        "phone_number": "+45 33 36 30 33",
+        "website_link": "https://kimoli.dk"
+    },
+    {
+        "name": "Incognito Studio Copenhagen",
+        "location": "Vendersgade 8, 1363 Copenhagen, Denmark",
+        "open_time": ["8:30 am - 6 pm", "8:30 am - 6 pm", "8:30 am - 6 pm", "8:30 am - 6 pm", "8:30 am - 6 pm", "8:30 am - 6 pm", "break"],
+        "phone_number": "+45 31 38 37 31",
+        "website_link": "https://incognitostudio.dk"
+    },
+    {
+        "name": "Street-Cut",
+        "location": "Falkoner Alle 26, 2000 Frederiksberg, Denmark",
+        "open_time": ["9 am - 5:30 pm", "9 am - 5:30 pm", "9 am - 5:30 pm", "9 am - 5:30 pm", "9 am - 5:30 pm", "9 am - 5:30 pm", "break"],
+        "phone_number": "+45 33 24 12 87",
+        "website_link": "https://street-cut.dk"
+    },
+    {
+        "name": "The Chair",
+        "location": "Store Strandstræde 19st, 1255 Copenhagen, Denmark",
+        "open_time": ["9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "break"],
+        "phone_number": "+45 33 12 24 55",
+        "website_link": "https://salonthechair.dk"
+    },
+    {
+        "name": "WINK Copenhagen",
+        "location": "Skindergade 24, 1159 Copenhagen, Denmark",
+        "open_time": ["9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "9:30 am - 5:30 pm", "break"],
+        "phone_number": "+45 93 87 28 68",
+        "website_link": "https://winkcopenhagen.dk"
+    }
+]
