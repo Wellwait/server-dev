@@ -1,0 +1,3 @@
+const PDF_ROCKET_API_KEY = ad696c198190d88ed744b5aff300cf5f_sr98766_ooPq87;
+
+export { PDF_ROCKET_API_KEY };
