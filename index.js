@@ -6,6 +6,7 @@ const cors = require('cors');
 const db = require('./db');
 const multer = require('multer');
 const path = require('path');
+const fs = require("fs");
 
 const app = express();
 const port = 5000;
@@ -16,31 +17,39 @@ const JWT_SECRET = 'Abcd1234!@!@';  // Store this in a secure place or use envir
 // Use body-parser to parse request bodies
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+
+
+// File upload endpoint
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // Directory where the file will be stored
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // Rename the file
-  }
+    destination: (req, file, cb) => {
+        cb(null, 'uploads'); // Set uploads folder as destination
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname}`); // Save file with unique name
+    },
 });
 
 const upload = multer({ storage: storage });
 
-// Create uploads directory if it doesn't exist
-const fs = require('fs');
-const dir = './uploads';
-if (!fs.existsSync(dir)){
-    fs.mkdirSync(dir);
+// Create the uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir);
 }
 
-app.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).send('No file uploaded.');
-  }
-  res.send({ status: 'success', filename: req.file.filename });
+// Define the API endpoint
+app.post('/upload_image', upload.single('image'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).send('No file uploaded.');
+    }
+    res.status(200).send({
+        message: 'File uploaded successfully.',
+        filePath: `/uploads/${req.file.filename}`,
+    });
 });
+
 
 // Register a user (for demonstration purposes)
 app.post('/register', async (req, res) => {
@@ -120,7 +129,7 @@ app.post('/login', (req, res) => {
       const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
         expiresIn: '1h', // Token expiry time
       });
-
+      console.log(birthday);
       // Return the token and user details to the client
       res.json({
         token,
@@ -364,14 +373,18 @@ app.get('/salon_service_providers', (req, res) => {
   sp.mobile_number,
   sp.email,
   sp.view_count,  -- Added view_count from Service_Provider
-  GROUP_CONCAT(s.name SEPARATOR ', ') AS service_names,  -- Changed from category to service name
-  GROUP_CONCAT(s.promo_image SEPARATOR ', ') AS promo_images,
-  IFNULL(r.average_rating, 0) AS average_rating,  -- Handle NULL values
-  IFNULL(r.total_ratings, 0) AS total_ratings      -- Handle NULL values
+  sp.photo,
+  GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ') AS service_names,  -- Combine service names
+  GROUP_CONCAT(DISTINCT s.promo_image SEPARATOR ', ') AS promo_images,  -- Combine promo images
+  GROUP_CONCAT(DISTINCT spi.image_url SEPARATOR ', ') AS image_urls,  -- Combine service provider images
+  IFNULL(r.average_rating, 0) AS average_rating,  -- Handle NULL values for average rating
+  IFNULL(r.total_ratings, 0) AS total_ratings      -- Handle NULL values for total ratings
 FROM
   Service_Provider AS sp
 LEFT JOIN
   Services AS s ON sp.id = s.service_provider_id
+LEFT JOIN
+  wellwait_db.service_provider_images AS spi ON sp.id = spi.service_provider_id
 LEFT JOIN (
   SELECT
       service_provider_id,
@@ -385,9 +398,10 @@ LEFT JOIN (
 GROUP BY
   sp.id, sp.name, sp.salon_name, sp.address, sp.mobile_number, sp.email, sp.view_count,
   r.average_rating, r.total_ratings
-  ORDER BY
-    average_rating DESC,  -- Highest rating first
-    total_ratings DESC;
+ORDER BY
+  average_rating DESC,  -- Highest rating first
+  total_ratings DESC;
+
   `;
 
   db.query(query, (err, results) => {
@@ -521,23 +535,35 @@ app.get('/salon_timings/:salonId/:day', (req, res) => {
 });
 
 
-app.post('/ratings/:user_id/:service_provider_id/:rating', (req, res) => {
-  const { user_id, service_provider_id, rating } = req.params;
+app.post("/ratings", (req, res) => {
+  const { rating, user_id, service_provider_id } = req.body;
 
-  // Insert the rating into the database
-  const sql = `INSERT INTO ratings (id, rating, user_id, service_provider_id) VALUES (?, ?, ?, ?)`;
+  if (!rating || !user_id || !service_provider_id) {
+    return res.status(400).json({ error: "All fields are required." });
+  }
 
-  // Here, '0' is used for id since you are using auto-increment
-  db.query(sql, [0, rating, user_id, service_provider_id], (err, result) => {
+  const query = `
+    INSERT INTO ratings (rating, user_id, service_provider_id)
+    VALUES (?, ?, ?)
+  `;
+
+  db.query(query, [rating, user_id, service_provider_id], (err, result) => {
     if (err) {
-      console.error('Error inserting rating:', err);
-      res.status(500).json({ error: 'Database error' });
-      return;
+      console.error("Error executing query:", err);
+      return res.status(500).json({ error: "Failed to insert rating." });
     }
-
-    res.status(200).json({ message: 'Rating added successfully', ratingId: result.insertId });
+    res.status(200).json({
+      message: "Rating added successfully.",
+      data: {
+        id: result.insertId,
+        rating,
+        user_id,
+        service_provider_id,
+      },
+    });
   });
 });
+
 
 app.get('/ratings/:service_provider_id', (req, res) => {
   const { service_provider_id } = req.params;
@@ -827,7 +853,7 @@ app.get('/getmyfavorite', (req, res) => {
     sp.id AS service_provider_id,
     sp.salon_name,
     sp.address,
-    sp.photo,
+    spi.image_url,
     AVG(s.rating) AS average_rating
 FROM
     wellwait_db.user_favorite uf
@@ -839,10 +865,14 @@ INNER JOIN
     wellwait_db.Services s
 ON
     sp.id = s.service_provider_id
+LEFT JOIN
+    wellwait_db.service_provider_images spi
+ON
+    sp.id = spi.service_provider_id
 WHERE
     uf.user_id = ?
 GROUP BY
-    sp.id, sp.salon_name, sp.address, sp.photo;
+    sp.id, sp.salon_name, sp.address, spi.image_url;
 
     `;
     db.query(sqlQuery, [user_id], (error, results) => {
@@ -865,20 +895,20 @@ app.post('/addmyfavorite', async (req, res) => {
 
 app.put('/update_user/:id', (req, res) => {
     const { id } = req.params;
-    const { email, username, phone_number, birthday, gender} = req.body; // Get data from the request body
+    const { email, username, phone_number, birthday, gender, photo} = req.body; // Get data from the request body
 
     // Validate input
-    if (!email || !username || !phone_number || !birthday || !gender) {
+    if (!email || !username || !phone_number || !birthday || !gender || !photo) {
         return res.status(400).json({ error: 'All fields are required.' });
     }
 
     // SQL query to update the service provider
     const sql = `
         UPDATE wellwait_db.User
-        SET email = ?, username = ?, phone_number = ?, birthday = ?, gender = ?
+        SET email = ?, username = ?, phone_number = ?, birthday = ?, gender = ? , photo = ?
         WHERE id = ?
     `;
-    const values = [email, username, phone_number, birthday, gender, id];
+    const values = [email, username, phone_number, birthday, gender, photo, id];
 
     db.query(sql, values, (err, result) => {
         if (err) {
@@ -916,6 +946,100 @@ FROM
     res.json(results);
   });
 });
+
+app.post('/service_provider_image', (req, res) => {
+  const { service_provider_id, image_url } = req.body;
+
+  // SQL query to insert the data
+  const query = `
+    INSERT INTO service_provider_images (service_provider_id, image_url)
+    VALUES (?, ?)
+  `;
+
+  // Execute the query
+  db.execute(query, [service_provider_id, image_url], (err, results) => {
+    if (err) {
+      console.error('Error inserting data:', err);
+      return res.status(500).json({ message: 'Failed to insert data', error: err.message });
+    }
+
+    // Successfully inserted data
+    res.status(200).json({
+      message: 'Data inserted successfully',
+      results,
+    });
+  });
+});
+
+app.post('/service_provider_banner', (req, res) => {
+  const { service_provider_id, image_url } = req.body;
+
+  // SQL query
+  const query = `
+    INSERT INTO service_provider_banners (service_provider_id, image_url)
+    VALUES (?, ?)
+  `;
+
+  // Execute the query
+  db.execute(query, [service_provider_id, image_url], (err, results) => {
+    if (err) {
+      console.error('Error inserting data:', err);
+      return res.status(500).json({ message: 'Failed to insert data', error: err.message });
+    }
+
+    res.status(200).json({
+      message: 'Data inserted successfully',
+      results,
+    });
+  });
+});
+
+app.post("/update_user_photo", (req, res) => {
+  const { id, photo } = req.body;
+
+  // Validate if id and photo are provided
+  if (!id || !photo) {
+    return res.status(400).json({ error: "Both user id and photo are required." });
+  }
+
+  // SQL query to update the user's photo
+  const query = `
+    UPDATE wellwait_db.\`User\`
+    SET photo = ?
+    WHERE id = ?;
+  `;
+
+  db.query(query, [photo, id], (err, result) => {
+    if (err) {
+      console.error("Error updating user photo:", err);
+      return res.status(500).json({ error: "Database query failed." });
+    }
+
+    // Check if any row was affected
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    res.json({ message: "User photo updated successfully" });
+  });
+});
+
+// app.get("/getservice_provider_images", (req, res) => {
+//   const query = `
+//     SELECT id, service_provider_id, image_url
+//     FROM service_provider_images;
+//   `;
+//
+//   db.query(query, (err, results) => {
+//     if (err) {
+//       console.error("Error executing query:", err);
+//       return res.status(500).json({ error: "Database query failed" });
+//     }
+//
+//     res.json(results);
+//   });
+// });
+
 
 /*app.get('/salon_service_providers', async (req, res) => {
   try {
