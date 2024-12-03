@@ -374,6 +374,10 @@ app.get('/salon_service_providers', (req, res) => {
   sp.email,
   sp.view_count,  -- Added view_count from Service_Provider
   sp.photo,
+  sp.pan_card,
+  sp.gst_in,
+  sp.bank_account_number,
+  sp.bank_ifsc_code,
   GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ') AS service_names,  -- Combine service names
   GROUP_CONCAT(DISTINCT s.promo_image SEPARATOR ', ') AS promo_images,  -- Combine promo images
   GROUP_CONCAT(DISTINCT spi.image_url SEPARATOR ', ') AS image_urls,  -- Combine service provider images
@@ -671,7 +675,8 @@ app.get('/past_booking', (req, res) => {
     b.finished_at,
     p.name AS panel_name,        -- Retrieve panel name
     sp.salon_name,
-    sp.address
+    sp.address,
+    spi.image_url                -- Retrieve service provider image URL
 FROM
     Booking b
 JOIN
@@ -682,6 +687,8 @@ JOIN
     Panel p ON b.panel_id = p.id  -- Join with Panel table to get panel name
 JOIN
     wellwait_db.Service_Provider sp ON b.service_provider_id = sp.id -- Join with Service_Provider table
+JOIN
+    wellwait_db.service_provider_images spi ON sp.id = spi.service_provider_id -- Join with service_provider_images table
 WHERE
     b.status = 3
 ORDER BY
@@ -726,8 +733,9 @@ app.get('/booking_pending', (req, res) => {
     b.finished,
     b.finished_at,
     p.name AS panel_name,           -- Retrieve panel name
-    sp.salon_name,          -- Retrieve salon name
-    sp.address                     -- Retrieve salon address
+    sp.salon_name,                  -- Retrieve salon name
+    sp.address,                     -- Retrieve salon address
+    spi.image_url                   -- Retrieve service provider image URL
     FROM
     Booking b
     JOIN
@@ -738,6 +746,8 @@ app.get('/booking_pending', (req, res) => {
     Panel p ON b.panel_id = p.id   -- Join with Panel table to get panel name
     JOIN
     wellwait_db.Service_Provider sp ON b.service_provider_id = sp.id  -- Join with Service_Provider table
+    LEFT JOIN
+    wellwait_db.service_provider_images spi ON sp.id = spi.service_provider_id  -- Join with service_provider_images
     WHERE
     b.scheduled_date = ?
     AND b.userId = ?
@@ -1024,6 +1034,104 @@ app.post("/update_user_photo", (req, res) => {
   });
 });
 
+
+app.post('/add_panels', (req, res) => {
+  const { name, description, price, service_provider_id, service_list } = req.body;
+
+  // Prepare the SQL query
+  const sql = 'INSERT INTO panel (name, description, price, service_provider_id, service_list) VALUES (?, ?, ?, ?, ?)';
+
+  // Execute the query
+  db.execute(sql, [name, description, price, service_provider_id, service_list], (err, results) => {
+    if (err) {
+      console.error('Error inserting data:', err);
+      return res.status(500).json({ message: 'Failed to insert data' });
+    }
+
+    // Respond with success
+    res.status(200).json({ message: 'Panel inserted successfully', id: results.insertId });
+  });
+});
+
+app.get('/get_salon_service_providers/:service_provider_id', (req, res) => {
+  const serviceProviderId = req.params.service_provider_id; // Get the service_provider_id from the URL
+
+  const query = `
+  SELECT
+  sp.id,
+  sp.name AS provider_name,
+  sp.salon_name,
+  sp.address,
+  sp.mobile_number,
+  sp.email,
+  sp.view_count,
+  sp.photo,
+  sp.pan_card,
+  sp.gst_in,
+  sp.bank_account_number,
+  sp.bank_ifsc_code,
+  GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ') AS service_names,
+  GROUP_CONCAT(DISTINCT s.promo_image SEPARATOR ', ') AS promo_images,
+  GROUP_CONCAT(DISTINCT spi.image_url SEPARATOR ', ') AS image_urls,
+  IFNULL(r.average_rating, 0) AS average_rating,
+  IFNULL(r.total_ratings, 0) AS total_ratings
+FROM
+  Service_Provider AS sp
+LEFT JOIN
+  Services AS s ON sp.id = s.service_provider_id
+LEFT JOIN
+  wellwait_db.service_provider_images AS spi ON sp.id = spi.service_provider_id
+LEFT JOIN (
+  SELECT
+      service_provider_id,
+      AVG(rating) AS average_rating,
+      COUNT(*) AS total_ratings
+  FROM
+      wellwait_db.ratings
+  GROUP BY
+      service_provider_id
+) AS r ON sp.id = r.service_provider_id
+WHERE
+  sp.id = ?  -- Use the service_provider_id passed in the URL
+GROUP BY
+  sp.id, sp.name, sp.salon_name, sp.address, sp.mobile_number, sp.email, sp.view_count,
+  r.average_rating, r.total_ratings
+ORDER BY
+  average_rating DESC,
+  total_ratings DESC;
+  `;
+
+  db.query(query, [serviceProviderId], (err, results) => {
+    if (err) {
+      return res.status(500).send(err.message);
+    }
+    res.json(results);
+  });
+});
+
+app.get('/get_salon_timings/:salonId', (req, res) => {
+    const salonId = req.params.salonId;
+
+    const query = `
+        SELECT id, salon_id, \`day\`, start_time, end_time, lunch_start, lunch_end
+        FROM salon_timings
+        WHERE salon_id = ?
+    `;
+
+    db.query(query, [salonId], (err, results) => {
+        if (err) {
+            console.error('Error executing query:', err);
+            return res.status(500).json({ error: 'Database query error' });
+        }
+
+        res.json(results);
+    });
+});
+
+
+
+
+
 // app.get("/getservice_provider_images", (req, res) => {
 //   const query = `
 //     SELECT id, service_provider_id, image_url
@@ -1053,10 +1161,15 @@ app.post("/update_user_photo", (req, res) => {
   }
 });*/
 
-// Start the server
+Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
+// Testing Down
+// app.listen(port, '0.0.0.0', () => {
+//   console.log(`Server is running on port ${port}`);
+// });
 
 
 /*SELECT
