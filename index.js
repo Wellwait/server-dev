@@ -1161,7 +1161,7 @@ app.get('/get_salon_timings/:salonId', (req, res) => {
   }
 });*/
 
-Start the server
+//Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
