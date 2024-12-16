@@ -1179,14 +1179,14 @@ app.get('/get_salon_timings/:salonId', (req, res) => {
 });*/
 
 //Start the server
-// app.listen(port, () => {
-//   console.log(`Server is running on port ${port}`);
-// });
-
-// Testing Down
-app.listen(port, '0.0.0.0', () => {
+app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
+// Testing Down
+// app.listen(port, '0.0.0.0', () => {
+//   console.log(`Server is running on port ${port}`);
+// });
 
 
 /*SELECT
