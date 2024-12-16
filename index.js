@@ -654,51 +654,55 @@ app.get('/booking', (req, res) => {
 });
 
 app.get('/past_booking', (req, res) => {
-    // Extract scheduled_date and service_provider_id from query parameters
+    // Extract userId from query parameters
+    const { userId } = req.query;
+
+    if (!userId) {
+        return res.status(400).json({ error: "Missing userId parameter" });
+    }
 
     // Construct the SQL query
     const sqlQuery = `
     SELECT
-    b.id,
-    u.username,
-    b.scheduled_date,
-    s.name AS service_name,      -- Retrieve service name
-    b.createdAt,
-    b.updatedAt,
-    b.service_provider_id,
-    b.status,
-    b.price,
-    b.panel_id,
-    b.started,
-    b.started_at,
-    b.finished,
-    b.finished_at,
-    p.name AS panel_name,        -- Retrieve panel name
-    sp.salon_name,
-    sp.address,
-    spi.image_url                -- Retrieve service provider image URL
-FROM
-    Booking b
-JOIN
-    User u ON b.userId = u.id
-JOIN
-    Services s ON b.serviceId = s.id
-JOIN
-    Panel p ON b.panel_id = p.id  -- Join with Panel table to get panel name
-JOIN
-    wellwait_db.Service_Provider sp ON b.service_provider_id = sp.id -- Join with Service_Provider table
-JOIN
-    wellwait_db.service_provider_images spi ON sp.id = spi.service_provider_id -- Join with service_provider_images table
-WHERE
-    b.status = 3
-ORDER BY
-    b.id ASC;
-
-
+        b.id,
+        u.username,
+        b.scheduled_date,
+        s.name AS service_name,      -- Retrieve service name
+        b.createdAt,
+        b.updatedAt,
+        b.service_provider_id,
+        b.status,
+        b.price,
+        b.panel_id,
+        b.started,
+        b.started_at,
+        b.finished,
+        b.finished_at,
+        p.name AS panel_name,        -- Retrieve panel name
+        sp.salon_name,
+        sp.address,
+        spi.image_url                -- Retrieve service provider image URL
+    FROM
+        Booking b
+    JOIN
+        User u ON b.userId = u.id
+    JOIN
+        Services s ON b.serviceId = s.id
+    JOIN
+        Panel p ON b.panel_id = p.id  -- Join with Panel table to get panel name
+    JOIN
+        wellwait_db.Service_Provider sp ON b.service_provider_id = sp.id -- Join with Service_Provider table
+    JOIN
+        wellwait_db.service_provider_images spi ON sp.id = spi.service_provider_id -- Join with service_provider_images table
+    WHERE
+        b.status = 3
+        AND b.userId = ?            -- Filter by userId
+    ORDER BY
+        b.id ASC;
     `;
 
     // Execute the query
-    db.query(sqlQuery, (error, results) => {
+    db.query(sqlQuery, [userId], (error, results) => {
         if (error) {
             return res.status(500).json({ error: error.message });
         }
@@ -706,18 +710,19 @@ ORDER BY
     });
 });
 
-app.get('/booking_pending', (req, res) => {
-    // Extract scheduled_date and userId from query parameters
-    const { scheduled_date, userId } = req.query;
 
-    // Check if both scheduled_date and userId are provided
-    if (!scheduled_date || !userId) {
-        return res.status(400).json({ error: 'scheduled_date and userId are required' });
+app.get('/booking_pending', (req, res) => {
+    // Extract userId from query parameters
+    const { userId } = req.query;
+
+    // Check if userId is provided
+    if (!userId) {
+        return res.status(400).json({ error: 'userId is required' });
     }
 
-    // Construct the SQL query
+    // Construct the SQL query without scheduled_date
     const sqlQuery = `
-        SELECT
+    SELECT
     b.id,
     u.username,
     b.scheduled_date,
@@ -735,7 +740,9 @@ app.get('/booking_pending', (req, res) => {
     p.name AS panel_name,           -- Retrieve panel name
     sp.salon_name,                  -- Retrieve salon name
     sp.address,                     -- Retrieve salon address
-    spi.image_url                   -- Retrieve service provider image URL
+    spi.image_url,                  -- Retrieve service provider image URL
+    IFNULL(r.average_rating, 0) AS average_rating,  -- Handle NULL values for average rating
+    IFNULL(r.total_ratings, 0) AS total_ratings      -- Handle NULL values for total ratings
     FROM
     Booking b
     JOIN
@@ -748,23 +755,33 @@ app.get('/booking_pending', (req, res) => {
     wellwait_db.Service_Provider sp ON b.service_provider_id = sp.id  -- Join with Service_Provider table
     LEFT JOIN
     wellwait_db.service_provider_images spi ON sp.id = spi.service_provider_id  -- Join with service_provider_images
+    LEFT JOIN (
+    SELECT
+        service_provider_id,
+        AVG(rating) AS average_rating,
+        COUNT(*) AS total_ratings
+    FROM
+        wellwait_db.ratings
+    GROUP BY
+        service_provider_id
+    ) AS r ON sp.id = r.service_provider_id
     WHERE
-    b.scheduled_date = ?
-    AND b.userId = ?
+    b.userId = ?
     AND b.status != 0
     ORDER BY
     b.id ASC;
 
     `;
 
-    // Execute the query with scheduled_date and userId as parameters
-    db.query(sqlQuery, [scheduled_date, userId], (error, results) => {
+    // Execute the query with userId as a parameter
+    db.query(sqlQuery, [userId], (error, results) => {
         if (error) {
             return res.status(500).json({ error: error.message });
         }
-        res.json(results);  // Send the results as JSON
+        res.json(results); // Send the results as JSON
     });
 });
+
 
 app.put('/cancel_booking/:id/status', (req, res) => {
     // Extract booking ID from the URL parameters
@@ -1162,14 +1179,14 @@ app.get('/get_salon_timings/:salonId', (req, res) => {
 });*/
 
 //Start the server
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
-
-// Testing Down
-// app.listen(port, '0.0.0.0', () => {
+// app.listen(port, () => {
 //   console.log(`Server is running on port ${port}`);
 // });
+
+// Testing Down
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server is running on port ${port}`);
+});
 
 
 /*SELECT
